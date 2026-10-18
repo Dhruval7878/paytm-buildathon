@@ -1,0 +1,11 @@
+{
+  "name": "voice-interviewer-kit",
+  "version": "1.0.0",
+  "description": "Plug-and-play voice interviewer agent scaffold (zero dependencies, Node 18+)",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js",
+    "dev": "node --watch --watch-path=./server.js --watch-path=./lib --watch-path=./usecases --watch-path=./.env server.js"
+  },
+  "license": "MIT"
+}

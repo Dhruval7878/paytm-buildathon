@@ -1,0 +1,672 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice Interviewer</title>
+<style>
+  :root { --bg:#f6f6f3; --panel:#ffffff; --side:#fbfbf9; --ink:#1b1a17; --mute:#6c6a63; --line:#e6e4dc; --accent:#4a5df0; --accent-ink:#fff; --soft:#eef0ff;
+          --ok:#1a8a52; --warn:#b4730f; --bad:#c23b2e; --radius:12px; --shadow:0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.04); }
+  @media (prefers-color-scheme: dark) { :root { --bg:#121210; --panel:#1b1b18; --side:#161614; --ink:#f0eee7; --mute:#9b988e; --line:#2f2d28; --accent:#8191ff; --accent-ink:#10121f; --soft:#22253d;
+          --ok:#4cc38a; --warn:#e0a84a; --bad:#ef7a6c; --shadow:0 1px 2px rgba(0,0,0,.4); } }
+  * { box-sizing:border-box; }
+  html, body { height:100%; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .app { display:flex; min-height:100vh; }
+  button { font:inherit; border:1px solid var(--line); background:var(--panel); color:var(--ink); border-radius:9px; padding:8px 14px; cursor:pointer; transition:background .15s, border-color .15s; }
+  button:hover { border-color:var(--accent); }
+  button.primary { background:var(--accent); border-color:var(--accent); color:var(--accent-ink); font-weight:600; }
+  button.primary:hover { filter:brightness(1.07); }
+  button:disabled { opacity:.5; cursor:default; }
+  select, textarea, input[type=text] { font:inherit; width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:9px; background:var(--panel); color:var(--ink); }
+  textarea { min-height:96px; resize:vertical; }
+  :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  small { color:var(--mute); }
+  .hide { display:none !important; }
+
+  /* ---- sidebar ---- */
+  .side { width:292px; flex:0 0 292px; background:var(--side); border-right:1px solid var(--line); display:flex; flex-direction:column; position:sticky; top:0; height:100vh; }
+  .brand { display:flex; align-items:center; gap:10px; padding:18px 18px 8px; font-weight:700; font-size:16px; letter-spacing:-.01em; }
+  .brand .logo { width:30px; height:30px; border-radius:9px; background:var(--accent); color:var(--accent-ink); display:grid; place-items:center; font-size:16px; }
+  .side .new { margin:10px 16px 6px; padding:10px; }
+  .side-sec { padding:14px 18px 6px; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--mute); display:flex; justify-content:space-between; }
+  #history { flex:1; overflow:auto; padding:0 10px 10px; }
+  .empty { padding:10px 8px; color:var(--mute); font-size:13px; }
+  .hist { display:block; padding:9px 10px; border-radius:10px; margin-bottom:2px; border:1px solid transparent; }
+  .hist:hover { background:var(--soft); }
+  .hist.cur { background:var(--soft); border-color:var(--accent); }
+  .hist a { color:inherit; text-decoration:none; display:block; }
+  .hist .ttl { font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .hist .meta { display:flex; align-items:center; gap:6px; margin-top:3px; font-size:12px; color:var(--mute); flex-wrap:wrap; }
+  .chip { display:inline-block; padding:1px 8px; border-radius:99px; font-size:11px; border:1px solid var(--line); color:var(--mute); }
+  .chip.approved { color:var(--ok); border-color:var(--ok); } .chip.cancelled { color:var(--bad); border-color:var(--bad); } .chip.reviewing, .chip.collecting { color:var(--warn); border-color:var(--warn); }
+  .hist select { width:auto; padding:2px 4px; font-size:12px; border-radius:7px; margin-left:auto; }
+  .side-foot { border-top:1px solid var(--line); padding:12px 18px 16px; font-size:13px; }
+  .side-foot label { display:flex; gap:8px; align-items:flex-start; margin:5px 0; color:var(--ink); }
+  .store { display:flex; align-items:center; gap:7px; margin-bottom:8px; font-size:12px; color:var(--mute); }
+  .store i { width:8px; height:8px; border-radius:50%; background:var(--mute); display:inline-block; }
+  .store.ok i { background:var(--ok); } .store.bad i { background:var(--bad); }
+
+  /* ---- main ---- */
+  .main { flex:1; min-width:0; }
+  .top { display:flex; align-items:center; gap:14px; padding:14px 28px; border-bottom:1px solid var(--line); background:var(--panel); position:sticky; top:0; z-index:5; flex-wrap:wrap; }
+  #menuBtn { display:none; padding:6px 10px; }
+  .steps { display:flex; gap:6px; align-items:center; margin-left:auto; flex-wrap:wrap; }
+  .step { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--mute); padding:5px 12px; border-radius:99px; border:1px solid var(--line); }
+  .step b { display:inline-grid; place-items:center; width:20px; height:20px; border-radius:50%; background:var(--line); font-size:11px; color:var(--ink); }
+  .step.on { color:var(--ink); border-color:var(--accent); background:var(--soft); } .step.on b { background:var(--accent); color:var(--accent-ink); }
+  .step.done b { background:var(--ok); color:#fff; }
+  .page { max-width:1080px; margin:0 auto; padding:24px 28px 60px; }
+  .page h1 { font-size:22px; margin:0 0 4px; letter-spacing:-.02em; }
+  .lead { color:var(--mute); margin:0 0 18px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:18px; box-shadow:var(--shadow); }
+  .row { display:flex; gap:18px; flex-wrap:wrap; align-items:flex-start; }
+  .col { flex:1 1 400px; min-width:0; }
+  .banner { background:var(--warn); color:#fff; padding:9px 14px; border-radius:10px; margin-bottom:12px; }
+
+  /* ---- interview ---- */
+  #log { height:min(52vh, 460px); overflow:auto; display:flex; flex-direction:column; gap:10px; padding:2px 4px 2px 0; }
+  .msg { padding:9px 13px; border-radius:14px; max-width:86%; white-space:pre-wrap; word-wrap:break-word; }
+  .msg.agent { background:var(--soft); align-self:flex-start; border-bottom-left-radius:4px; }
+  .msg.user { background:var(--accent); color:var(--accent-ink); align-self:flex-end; border-bottom-right-radius:4px; }
+  .msg.interim { opacity:.6; }
+  .status { display:flex; align-items:center; gap:8px; margin:12px 0 10px; color:var(--mute); font-size:13px; }
+  .dot { width:11px; height:11px; border-radius:50%; background:var(--mute); }
+  .dot.listening { background:var(--bad); animation:pulse 1s infinite; } .dot.speaking { background:var(--ok); } .dot.thinking { background:var(--warn); }
+  @keyframes pulse { 50% { transform:scale(1.5); opacity:.6; } }
+  .inputrow { display:flex; gap:8px; } .inputrow button { white-space:nowrap; }
+  .actions { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
+  .savebar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:13px; color:var(--mute); margin-bottom:12px; padding-bottom:12px; border-bottom:1px solid var(--line); }
+  .savebar input { flex:1; min-width:150px; font-size:12px; padding:5px 8px; } .savebar .bad { color:var(--bad); }
+  .progress { height:7px; background:var(--line); border-radius:99px; overflow:hidden; margin:8px 0 4px; } .progress > div { height:100%; background:var(--ok); transition:width .4s; }
+  .slot { padding:9px 0; border-bottom:1px solid var(--line); } .slot:last-child { border:0; }
+  .slot b { font-size:13px; } .slot .val { color:var(--mute); font-size:13px; margin-top:2px; }
+  .tag { font-size:11px; padding:1px 8px; border-radius:99px; border:1px solid var(--line); margin-left:6px; }
+  .tag.stated { color:var(--ok); border-color:var(--ok); } .tag.inferred, .tag.partial { color:var(--warn); border-color:var(--warn); } .tag.unknown { color:var(--bad); border-color:var(--bad); }
+  .sens { background:color-mix(in srgb, var(--bad) 12%, transparent); padding:8px 12px; border-radius:9px; margin:6px 0; }
+
+  /* ---- review ---- */
+  .tabs { display:flex; gap:6px; margin:14px 0; flex-wrap:wrap; }
+  .tabs button.on { background:var(--ink); color:var(--bg); border-color:var(--ink); }
+  .field { margin-bottom:14px; padding:12px 14px; border:1px solid var(--line); border-radius:10px; background:var(--bg); }
+  .field label { font-weight:600; font-size:14px; display:block; margin-bottom:6px; }
+  .field textarea { min-height:64px; background:var(--panel); }
+  pre { white-space:pre-wrap; font:inherit; background:var(--bg); padding:14px; border-radius:10px; border:1px solid var(--line); }
+  .decision { padding:11px 14px; border-radius:10px; margin:12px 0; background:var(--soft); border:1px solid var(--accent); }
+  .decidebar { position:sticky; bottom:0; background:var(--panel); border-top:1px solid var(--line); margin:18px -18px -18px; padding:14px 18px; border-radius:0 0 var(--radius) var(--radius); display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+
+  /* ---- narrow screens: sidebar becomes a drawer ---- */
+  @media (max-width: 900px) {
+    .side { position:fixed; left:0; top:0; z-index:20; transform:translateX(-100%); transition:transform .2s; box-shadow:var(--shadow); }
+    .side.open { transform:none; } #menuBtn { display:inline-block; } .page { padding:18px 16px 60px; } .top { padding:12px 16px; }
+  }
+
+  /* ===== shadcn-style theme (zinc): tokens + component polish, plain CSS ===== */
+  :root { --bg:#fafafa; --panel:#ffffff; --side:#fafafa; --ink:#09090b; --mute:#71717a; --line:#e4e4e7; --accent:#18181b; --accent-ink:#fafafa; --soft:#f4f4f5; --ring:#a1a1aa; --radius:10px;
+          --shadow:0 1px 2px rgba(0,0,0,.05); }
+  @media (prefers-color-scheme: dark) { :root { --bg:#09090b; --panel:#0e0e10; --side:#0b0b0d; --ink:#fafafa; --mute:#a1a1aa; --line:#27272a; --accent:#fafafa; --accent-ink:#18181b; --soft:#1c1c1f; --ring:#71717a; --shadow:none; } }
+  body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size:14px; letter-spacing:-.006em; -webkit-font-smoothing:antialiased; }
+  :focus-visible { outline:2px solid var(--ring); outline-offset:2px; }
+  button { height:36px; padding:0 14px; border-radius:calc(var(--radius) - 2px); font-size:14px; font-weight:500; box-shadow:var(--shadow); }
+  button:hover { background:var(--soft); border-color:var(--line); }
+  button.primary { box-shadow:none; } button.primary:hover { background:var(--accent); filter:none; opacity:.9; border-color:var(--accent); }
+  select, textarea, input[type=text] { border-radius:calc(var(--radius) - 2px); box-shadow:var(--shadow); } select, input[type=text] { height:36px; padding:0 12px; }
+  textarea:focus, input[type=text]:focus, select:focus { outline:none; border-color:var(--ring); box-shadow:0 0 0 3px color-mix(in srgb, var(--ring) 30%, transparent); }
+  .card { box-shadow:var(--shadow); border-radius:calc(var(--radius) + 2px); }
+  .brand .logo { border-radius:8px; background:var(--accent); color:var(--accent-ink); }
+  .side .new { height:38px; width:calc(100% - 32px); }
+  .side-sec { font-size:11px; letter-spacing:.06em; }
+  .hist { border-radius:calc(var(--radius) - 2px); } .hist:hover { background:var(--soft); } .hist.cur { background:var(--soft); border-color:var(--line); box-shadow:var(--shadow); }
+  .hist select { height:24px; padding:0 4px; font-size:12px; box-shadow:none; background:transparent; }
+  .chip { border-radius:6px; font-weight:600; padding:1px 7px; }
+  .top { background:color-mix(in srgb, var(--panel) 88%, transparent); backdrop-filter:blur(8px); }
+  .step { border-radius:8px; border-color:transparent; font-weight:500; } .step.on { background:var(--soft); border-color:var(--line); color:var(--ink); }
+  .step.on b { background:var(--accent); color:var(--accent-ink); } .step.done b { background:var(--ok); }
+  .msg { border-radius:12px; } .msg.agent { background:var(--soft); border:1px solid var(--line); } .msg.user { background:var(--accent); color:var(--accent-ink); }
+  .progress { height:6px; } .progress > div { background:var(--accent); }
+  .tag { border-radius:6px; font-weight:600; }
+  .tabs button { height:32px; } .tabs button.on { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  .field { background:var(--panel); border-radius:calc(var(--radius) - 2px); } .field textarea { background:var(--bg); box-shadow:none; }
+  pre { background:var(--soft); border-radius:calc(var(--radius) - 2px); }
+  .decision { background:var(--soft); border:1px solid var(--line); border-radius:calc(var(--radius) - 2px); }
+  .decidebar { background:var(--panel); }
+  .savebar input { height:30px; background:var(--panel); color:var(--ink); border:1px solid var(--line); border-radius:7px; padding:0 8px; }
+  .urlrow { display:flex; gap:8px; margin:8px 0 4px; } #urlInput { height:46px; font-size:15px; } .urlrow button { height:46px; padding:0 22px; }
+  .sidenav { padding:0 16px 4px; display:flex; flex-direction:column; gap:2px; } .sidenav button { border:0; box-shadow:none; background:transparent; text-align:left; width:100%; justify-content:flex-start; }
+  .sidenav button:hover { background:var(--soft); }
+  .side-foot { margin-top:auto; }
+  .page h1 { font-size:26px; font-weight:700; letter-spacing:-.03em; } .lead { font-size:15px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side" id="side">
+    <div class="brand"><span class="logo">🎙️</span> Voice Interviewer</div>
+    <button class="primary new" id="newBtn">+ New application</button>
+    <nav class="sidenav" id="sideNav"></nav>
+    <div class="side-sec hide"><span>Previous applications</span><small id="histNote"></small></div>
+    <section id="history" class="hide"><div id="histList"></div></section>
+    <div style="flex:1"></div>
+    <div class="side-foot">
+      <div class="store" id="storeChip"><i></i><span id="storeText">checking storage…</span></div>
+      <label><input type="checkbox" id="speakOn" checked> Agent speaks aloud</label>
+      <label id="sarvamRow" class="hide"><input type="checkbox" id="sarvamVoice" checked> Sarvam voice</label>
+      <label><input type="checkbox" id="headphones"> Headphones mode <small>(lets you interrupt)</small></label>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="top">
+      <button id="menuBtn" aria-label="Menu">☰</button>
+      <div class="steps" id="steps">
+        <span class="step on" data-s="1"><b>1</b> Link</span>
+        <span class="step" data-s="2"><b>2</b> Interview</span>
+        <span class="step" data-s="3"><b>3</b> Review &amp; approve</span>
+      </div>
+    </header>
+
+    <div class="page">
+      <div id="banner"></div>
+
+      <!-- SETUP -->
+      <section id="setup">
+        <h1>Fill an application by talking</h1>
+        <p class="lead">Paste a public job link. The agent reads the real questions, interviews you, and drafts grounded answers for you to review. Nothing is submitted for you.</p>
+        <div class="card">
+          <div id="ucRow" class="hide"><select id="usecase"></select></div>
+          <div id="formBox" class="hide">
+            <label for="urlInput"><b>Paste a job or application link</b></label>
+            <div class="urlrow">
+              <input type="text" id="urlInput" placeholder="https://company.com/careers/apply?job=123" autocomplete="off" spellcheck="false" autofocus>
+              <button class="primary" id="startBtn">Start</button>
+            </div>
+            <div id="fallback" class="hide">
+              <p><small id="fallbackMsg"></small></p>
+              <textarea id="formText" placeholder="Paste the questions instead, one per line"></textarea>
+            </div>
+          </div>
+          <p><small>That's all you need. The agent reads the form, then interviews you. Use Chrome or Edge for the microphone; typing works anywhere. Use fictional details for demos.</small></p>
+        </div>
+      </section>
+
+      <!-- INTERVIEW -->
+      <section id="interview" class="hide">
+        <div class="row">
+          <div class="col card">
+            <div id="savebar" class="savebar hide"></div>
+            <div id="log"></div>
+            <div class="status"><span class="dot" id="dot"></span><span id="statusText">idle</span></div>
+            <div class="inputrow">
+              <input type="text" id="typed" placeholder="…or type your answer and press Enter">
+              <button id="micBtn">🎤 Mic on</button>
+            </div>
+            <div class="actions"><button class="primary" id="finishBtn">Finish &amp; build summary</button> <button id="resetBtn">Restart</button></div>
+          </div>
+          <div class="col card">
+            <b>What the agent knows so far</b>
+            <div class="progress"><div id="progressBar" style="width:0%"></div></div>
+            <small id="progressText"></small>
+            <div id="slots"></div>
+            <div id="sensitive"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- EXTENSION VIEW (history details, profile, ...): filled by public/*.js via showExt() -->
+      <section id="extView" class="hide"><div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><h2 id="extTitle" style="margin:0"></h2><button id="extClose">Close</button></div>
+        <div id="extBody" style="margin-top:14px"></div>
+      </div></section>
+
+      <!-- REVIEW -->
+      <section id="review" class="hide">
+        <div class="card">
+          <h2 id="rTitle" style="margin-top:0"></h2>
+          <p id="rSummary"></p>
+          <div class="tabs" id="rTabs"></div>
+          <div id="rBody"></div>
+          <div id="decisionMsg"></div>
+          <div class="decidebar" id="decideRow">
+            <button class="primary" id="approveBtn">Approve</button> <button id="reviseBtn">Keep editing</button> <button id="cancelBtn">Cancel</button>
+            <small>Approving saves this exact version. Nothing is submitted or sent anywhere.</small>
+            <span style="margin-left:auto"><button id="copyBtn">Copy</button> <button id="dlBtn">Download JSON</button> <button id="backBtn">Back to interview</button></span>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const S = { usecase:null, slots:[], state:{ slots:{}, sensitive:[] }, transcript:[], busy:false, speaking:false, micOn:true, brief:null, config:null, lastSpeechAt:0, trackSeq:0, appliedSeq:0, trackDone:false, token:null, form:{}, saveErr:false, decided:null };
+
+// ---------- layout helpers ----------
+function setStep(n) {
+  document.querySelectorAll('#steps .step').forEach(el => { const s = +el.dataset.s; el.classList.toggle('on', s === n); el.classList.toggle('done', s < n); });
+}
+// Extension helpers: showExt() swaps the main area to the extension view and returns its body element.
+function showExt(title) { ['setup', 'interview', 'review'].forEach(id => $(id).classList.add('hide')); $('extView').classList.remove('hide'); $('extTitle').textContent = title || ''; $('side').classList.remove('open'); return $('extBody'); }
+function hideExt() { $('extView').classList.add('hide'); }
+$('extClose').onclick = () => { location.href = S.token ? '/?s=' + S.token : location.pathname; };
+$('menuBtn').onclick = () => $('side').classList.toggle('open');
+$('newBtn').onclick = () => { stopAll(); location.href = location.pathname; };
+
+// ---------- boot ----------
+(async function boot() {
+  S.config = await (await fetch('/api/config')).json();
+  if (!S.config.hasKey) $('banner').innerHTML = `<div class="banner">No API key found. Copy <code>.env.example</code> to <code>.env</code>, add a key, restart the server.</div>`;
+  $('usecase').innerHTML = S.config.usecases.map(u => `<option value="${esc(u.id)}">${esc(u.name)}</option>`).join('');
+  $('usecase').onchange = () => $('formBox').classList.toggle('hide', !S.config.usecases.find(u => u.id === $('usecase').value).dynamicSlots);
+  $('usecase').onchange();
+  if (S.config.usecases.length === 1) $('ucRow').classList.add('hide');   // single use case: no picker
+  if (S.config.sarvamVoice) $('sarvamRow').classList.remove('hide');
+  const ok = S.config.storage === 'supabase';
+  $('storeChip').classList.add(ok ? 'ok' : 'bad'); $('storeText').textContent = ok ? 'Saved to Supabase' : 'Not saving: Supabase not configured';
+  if (S.config.storage !== 'supabase') $('banner').innerHTML += `<div class="banner">Supabase is not configured, so nothing can be saved. Add SUPABASE_URL and SUPABASE_SECRET_KEY to .env and restart.</div>`;
+  const token = new URLSearchParams(location.search).get('s');
+  if (token) await resumeSession(token); else loadHistory();
+})();
+
+async function post(url, body) {
+  const r = await fetch(url, { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(body) });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+// ---------- start ----------
+$('startBtn').onclick = async () => {
+  const uc = S.config.usecases.find(u => u.id === $('usecase').value);
+  S.useSarvam = !!(S.config.sarvamVoice && $('sarvamVoice').checked);
+  S.usecase = uc.id; S.slots = uc.slots; S.state = { slots:{}, sensitive:[] }; S.transcript = [];
+  $('startBtn').disabled = true;
+  try {
+    if (uc.dynamicSlots) {
+      const pasted = !$('fallback').classList.contains('hide') ? $('formText').value.trim() : '';
+      const text = pasted || $('urlInput').value.trim();
+      if (!text) { $('urlInput').focus(); return; }
+      $('startBtn').textContent = 'Reading the form…';
+      let setup;
+      try { setup = await post('/api/setup', { text }); }
+      catch (e) { $('fallback').classList.remove('hide'); $('fallbackMsg').textContent = e.message; $('formText').focus(); return; }
+      S.slots = setup.slots; S.form = setup.form || {};
+    }
+    const st = await post('/api/session/start', { usecase:S.usecase, slots:S.slots, form:S.form, transcript:[], state:S.state });
+    S.token = st.token; history.replaceState(null, '', '?s=' + S.token); loadHistory();
+    $('startBtn').textContent = 'Checking your resume…';
+    // 1) facts the profile already knows (name, email, phone...), 2) longer answers drafted from the resume, 3) only the rest is asked
+    S.prefilled = []; S.drafted = []; S.askFor = [];
+    try {
+      const pf = await post('/api/profile/prefill', { slots:S.slots });
+      const covered = new Set();
+      for (const m of (pf.matches || [])) { const sl = S.slots.find(x => x.id === m.slot_id); if (!sl) continue; S.state.slots[m.slot_id] = { value:m.value, status:'inferred', evidence:'from your profile' }; S.prefilled.push(`${sl.label}: ${m.value}`); covered.add(m.slot_id); }
+      const rest = S.slots.filter(x => !covered.has(x.id));
+      if (rest.length) {
+        const dr = await post('/api/profile/draft', { slots:rest.map(x => ({ id:x.id, label:x.label, hint:x.hint })) });
+        for (const d of (dr.drafts || [])) { const sl = S.slots.find(x => x.id === d.slot_id); if (!sl) continue; S.state.slots[d.slot_id] = { value:d.answer, status:'inferred', evidence:'drafted from your resume (' + d.sources.join(', ') + ')' }; S.drafted.push(sl.label); covered.add(d.slot_id); }
+      }
+      S.askFor = S.slots.filter(x => !covered.has(x.id)).map(x => x.label);
+    } catch (e) { /* no profile yet: everything goes to the interview */ }
+  } catch (e) { alert(e.message); return; } finally { $('startBtn').disabled = false; $('startBtn').textContent = 'Start'; }
+  $('setup').classList.add('hide'); $('interview').classList.remove('hide'); $('log').innerHTML = '';
+  renderSlots(); showSaveBar(); setStep(2);
+  const some = (arr, n) => arr.length > n ? arr.slice(0, n).join('; ') + ` and ${arr.length - n} more` : arr.join('; ');
+  const opening = ((S.prefilled && S.prefilled.length) || (S.drafted && S.drafted.length))
+    ? `I read the form: ${S.slots.length} questions. `
+      + (S.prefilled.length ? `From your profile I filled ${S.prefilled.length}: ${S.prefilled.join('; ')}. ` : '')
+      + (S.drafted.length ? `From your resume I also drafted ${S.drafted.length} longer answer${S.drafted.length > 1 ? 's' : ''} (${some(S.drafted, 3)}), which you will check at the end. ` : '')
+      + (S.askFor.length ? `I only need to ask you about: ${some(S.askFor, 4)}. ` : 'Everything is covered. ')
+      + (S.prefilled.length ? 'Are the filled answers right? Say yes, or tell me what to change.' : 'Shall we start?')
+    : uc.dynamicSlots ? `Great, I see ${S.slots.length} things to cover. ${S.slots[0] ? 'Let\'s start. ' : ''}Tell me a bit about yourself and what you\'re applying for.` : uc.opening;
+  agentSay(opening);
+};
+$('urlInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('startBtn').click(); });
+$('urlInput').addEventListener('paste', () => setTimeout(() => { if (/^https?:\/\/\S+$/i.test($('urlInput').value.trim())) $('startBtn').click(); }, 150));   // pasting a link starts right away
+$('resetBtn').onclick = () => { stopAll(); location.href = location.pathname; };   // fresh start (the old session stays in history)
+
+// ---------- conversation ----------
+function addMsg(role, text, cls='') {
+  const d = document.createElement('div'); d.className = `msg ${role} ${cls}`; d.textContent = text;
+  $('log').appendChild(d); $('log').scrollTop = 1e9; return d;
+}
+function setStatus(kind, text) { $('dot').className = 'dot ' + kind; $('statusText').textContent = text; }
+
+function agentSay(text) {
+  S.transcript.push({ role:'agent', text }); addMsg('agent', text); persist();
+  if (!$('speakOn').checked) return resumeListening();
+  if (S.useSarvam) return sarvamSpeak(text);
+  browserSpeak(text);
+}
+function browserSpeak(text) {
+  if (!window.speechSynthesis) return resumeListening();
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.rate = 1.05;
+  u.onstart = () => { S.speaking = true; setStatus('speaking', 'agent speaking'); if (!$('headphones').checked) stopRec(); };
+  u.onend = u.onerror = () => { S.speaking = false; resumeListening(); };
+  speechSynthesis.speak(u);
+}
+
+async function userSaid(text) {
+  text = text.trim(); if (!text || S.busy) return;
+  if (S.speaking) { stopPlayback(); speechSynthesis.cancel(); S.speaking = false; }   // barge-in
+  S.transcript.push({ role:'user', text }); addMsg('user', text); persist();
+  S.busy = true; stopRec(); setStatus('thinking', 'thinking…');
+  const body = () => ({ usecase:S.usecase, slots:S.slots, state:S.state, transcript:S.transcript.slice() });
+  try {
+    let out;
+    if (S.config.split) {
+      // Fast path: reply now. Slow path: slot tracking runs in the background and updates the panel when it lands.
+      const seq = ++S.trackSeq;
+      post('/api/track', body()).then(t => {
+        if (seq < S.appliedSeq) return;                 // stale result from an older turn
+        S.appliedSeq = seq;
+        S.state = { slots: t.slots, sensitive: t.sensitive }; S.trackDone = t.done; renderSlots(); persist();
+      }).catch(e => console.warn('track failed', e.message));
+      out = await post('/api/reply', body());
+      out.done = out.done || S.trackDone;
+    } else {
+      out = await post('/api/turn', body());
+      S.state = { slots: out.slots || S.state.slots, sensitive: out.sensitive || S.state.sensitive };
+      renderSlots();
+    }
+    S.busy = false;
+    agentSay(out.reply || 'Could you say that again?');
+    if (out.done) { S.finished = true; setStatus('', 'interview complete, click Finish'); }
+  } catch (e) {
+    S.busy = false; addMsg('agent', '⚠️ ' + e.message); resumeListening();
+  }
+}
+$('typed').addEventListener('keydown', e => { if (e.key === 'Enter') { const v = e.target.value; e.target.value = ''; userSaid(v); } });
+
+// ---------- speech recognition (browser STT) ----------
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, buffer = '', flushTimer = null, nudgeTimer = null, interimEl = null;
+
+function resumeListening() {
+  clearTimeout(nudgeTimer);
+  if (S.finished && !S.finalizing) { S.finalizing = true; stopRec(); setStatus('thinking', 'building your summary…'); return $('finishBtn').click(); }   // interview complete: go straight to the summary
+  if (S.busy || !S.micOn || !(S.useSarvam || SR)) return setStatus('', S.micOn ? 'type your answer' : 'mic off');
+  startRec();
+  // if the user stays silent, gently nudge once per 15s of silence
+  nudgeTimer = setTimeout(() => { if (!S.busy && !buffer) agentSay("Take your time. Whenever you're ready, I'm listening."); }, 15000);
+}
+function startRec() { return S.useSarvam ? startVad() : startBrowserRec(); }
+function stopRec() { clearTimeout(flushTimer); if (S.useSarvam) { stopVad(); return; } stopBrowserRec(); }
+function startBrowserRec() {
+  if (rec) return;
+  rec = new SR(); rec.lang = 'en-IN'; rec.continuous = true; rec.interimResults = true;
+  rec.onstart = () => setStatus('listening', 'listening…');
+  rec.onresult = e => {
+    clearTimeout(nudgeTimer);
+    if (S.speaking && $('headphones').checked) { speechSynthesis.cancel(); S.speaking = false; }
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) buffer += ' ' + e.results[i][0].transcript; else interim += e.results[i][0].transcript;
+    }
+    if (!interimEl) interimEl = addMsg('user', '', 'interim');
+    interimEl.textContent = (buffer + ' ' + interim).trim();
+    // wait ~1.4s of silence before sending, so mid-sentence pauses don't cut people off
+    clearTimeout(flushTimer);
+    flushTimer = setTimeout(flush, 1400);
+  };
+  rec.onend = () => { rec = null; if (S.micOn && !S.busy && !S.speaking) setTimeout(startBrowserRec, 200); };
+  rec.onerror = e => { if (e.error === 'not-allowed') { S.micOn = false; $('micBtn').textContent = '🎤 Mic blocked'; } };
+  try { rec.start(); } catch {}
+}
+function stopBrowserRec() { clearTimeout(flushTimer); if (rec) { rec.onend = null; try { rec.stop(); } catch {} rec = null; } }
+function flush() {
+  const text = buffer.trim(); buffer = '';
+  if (interimEl) { interimEl.remove(); interimEl = null; }
+  if (text) userSaid(text);
+}
+$('micBtn').onclick = () => {
+  S.micOn = !S.micOn; $('micBtn').textContent = S.micOn ? '🎤 Mic on' : '🎤 Mic off';
+  S.micOn ? resumeListening() : (stopRec(), setStatus('', 'mic off'));
+};
+function stopAll() { stopRec(); stopPlayback(); speechSynthesis.cancel(); clearTimeout(nudgeTimer); }
+
+
+// ---------- Sarvam voice: VAD + WAV recorder -> /api/stt, and /api/tts playback ----------
+const VAD = { rate:16000, endSilenceMs:1200, minSpeechMs:350, maxMs:25000, minRms:0.02 };
+let vad = null;
+
+async function startVad() {
+  if (vad) { vad.active = true; setStatus('listening', 'listening…'); return; }
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true, channelCount:1 } }); }
+  catch { S.micOn = false; $('micBtn').textContent = '🎤 Mic blocked'; setStatus('', 'mic blocked, type your answer'); return; }
+  const ctx = new AudioContext({ sampleRate: VAD.rate }); await ctx.resume();
+  const src = ctx.createMediaStreamSource(stream), proc = ctx.createScriptProcessor(2048, 1, 1);
+  vad = { ctx, stream, src, proc, active:true, speaking:false, pre:[], chunks:[], voiced:0, silentMs:0, noise:0.008, startedAt:0 };
+  proc.onaudioprocess = e => onAudio(new Float32Array(e.inputBuffer.getChannelData(0)));
+  src.connect(proc); proc.connect(ctx.destination);   // output stays silent: we never write to outputBuffer
+  setStatus('listening', 'listening…');
+}
+function stopVad() { if (vad) { vad.active = false; vad.speaking = false; vad.chunks = []; vad.pre = []; vad.voiced = 0; } }
+
+function onAudio(buf) {
+  if (!vad.active) { vad.speaking = false; vad.chunks = []; vad.pre = []; return; }
+  const ms = buf.length / VAD.rate * 1000;
+  let sum = 0; for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+  const rms = Math.sqrt(sum / buf.length), isVoice = rms > Math.max(VAD.minRms, vad.noise * 3);
+  if (!vad.speaking) {
+    if (!isVoice) vad.noise = vad.noise * 0.95 + rms * 0.05;      // adapt to room noise
+    vad.pre.push(buf); if (vad.pre.length > 3) vad.pre.shift();    // ~380ms pre-roll so first word isn't clipped
+    vad.voiced = isVoice ? vad.voiced + 1 : 0;
+    if (vad.voiced >= 2) {                                          // two voiced blocks in a row = speech started
+      if (S.speaking) { stopPlayback(); }                           // barge-in (headphones mode)
+      clearTimeout(nudgeTimer);
+      vad.speaking = true; vad.chunks = vad.pre.slice(); vad.pre = []; vad.silentMs = 0; vad.startedAt = Date.now();
+      if (!interimEl) interimEl = addMsg('user', '…', 'interim');
+      setStatus('listening', 'hearing you…');
+    }
+    return;
+  }
+  vad.chunks.push(buf);
+  vad.silentMs = isVoice ? 0 : vad.silentMs + ms;
+  if (vad.silentMs >= VAD.endSilenceMs || Date.now() - vad.startedAt > VAD.maxMs) finishUtterance();
+}
+
+async function finishUtterance() {
+  const chunks = vad.chunks, speechMs = chunks.length * 2048 / VAD.rate * 1000 - vad.silentMs;
+  vad.chunks = []; vad.speaking = false; vad.voiced = 0; vad.active = false;   // pause detection while we transcribe
+  if (speechMs < VAD.minSpeechMs) { if (interimEl) { interimEl.remove(); interimEl = null; } return resumeListening(); }   // cough/click, ignore
+  setStatus('thinking', 'transcribing…');
+  try {
+    const r = await fetch('/api/stt', { method:'POST', headers:{ 'content-type':'audio/wav' }, body: encodeWav(chunks, VAD.rate) });
+    const j = await r.json(); if (!r.ok) throw new Error(j.error || 'transcription failed');
+    if (interimEl) { interimEl.remove(); interimEl = null; }
+    if (j.transcript) return userSaid(j.transcript);
+    resumeListening();
+  } catch (e) {
+    if (interimEl) { interimEl.remove(); interimEl = null; }
+    addMsg('agent', '⚠️ Could not transcribe (' + e.message + '). You can type your answer instead.'); resumeListening();
+  }
+}
+
+function encodeWav(chunks, rate) {
+  const n = chunks.reduce((a, c) => a + c.length, 0), view = new DataView(new ArrayBuffer(44 + n * 2));
+  const str = (o, s) => [...s].forEach((c, i) => view.setUint8(o + i, c.charCodeAt(0)));
+  str(0, 'RIFF'); view.setUint32(4, 36 + n * 2, true); str(8, 'WAVEfmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true); view.setUint32(24, rate, true); view.setUint32(28, rate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+  str(36, 'data'); view.setUint32(40, n * 2, true);
+  let o = 44; for (const c of chunks) for (let i = 0; i < c.length; i++, o += 2) view.setInt16(o, Math.max(-1, Math.min(1, c[i])) * 0x7fff, true);
+  return new Blob([view], { type:'audio/wav' });
+}
+
+// TTS: split into sentences, fetch all in parallel, play in order (first words start after ~1 sentence of latency)
+S.speakGen = 0; S.audio = null;
+function stopPlayback() { S.speakGen++; if (S.audio) { try { S.audio.pause(); } catch {} S.audio = null; } S.speaking = false; }
+function playBlob(blob, gen) {
+  return new Promise(res => {
+    const url = URL.createObjectURL(blob), a = new Audio(url); S.audio = a;
+    const done = () => { URL.revokeObjectURL(url); res(); };
+    a.onended = a.onerror = done; a.play().catch(done);
+  });
+}
+async function sarvamSpeak(text) {
+  const gen = ++S.speakGen;
+  const parts = (text.match(/[^.!?]+[.!?]+["']?|[^.!?]+$/g) || [text]).map(x => x.trim()).filter(Boolean);
+  const merged = []; for (const p of parts) { if (merged.length && merged[merged.length - 1].length < 30) merged[merged.length - 1] += ' ' + p; else merged.push(p); }
+  const fetches = merged.map(t => fetch('/api/tts', { method:'POST', body: JSON.stringify({ text:t }) }).then(r => { if (!r.ok) throw new Error('tts ' + r.status); return r.blob(); }));
+  fetches.forEach(f => f.catch(() => {}));
+  S.speaking = true; setStatus('speaking', 'agent speaking'); if (!$('headphones').checked) stopRec();
+  try {
+    for (const f of fetches) { const blob = await f; if (gen !== S.speakGen) return; await playBlob(blob, gen); if (gen !== S.speakGen) return; }
+  } catch (e) { console.warn('Sarvam TTS failed, using browser voice:', e.message); if (gen === S.speakGen) { S.speaking = false; return browserSpeak(text); } return; }
+  if (gen === S.speakGen) { S.speaking = false; resumeListening(); }
+}
+
+// ---------- live slots ----------
+function renderSlots() {
+  $('slots').innerHTML = S.slots.map(s => {
+    const v = S.state.slots[s.id] || {};
+    const st = ['empty', 'partial', 'stated', 'inferred', 'unknown'].includes(v.status) ? v.status : 'empty';
+    return `<div class="slot"><b>${esc(s.label)}</b><span class="tag ${st}">${st}</span>
+      <div class="val">${esc(v.value || '—')}</div></div>`;
+  }).join('');
+  const total = S.slots.length || 1, done = S.slots.filter(s => ['stated', 'unknown'].includes((S.state.slots[s.id] || {}).status)).length;
+  $('progressBar').style.width = Math.round(done / total * 100) + '%'; $('progressText').textContent = `${done} of ${S.slots.length} questions answered`;
+  $('sensitive').innerHTML = (S.state.sensitive || []).length
+    ? `<p><b>⚠️ Sensitive</b></p>` + S.state.sensitive.map(x => `<div class="sens">${esc(x.text)}<br><small>${esc(x.reason)}</small></div>`).join('') : '';
+}
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// ---------- saved sessions: save as you go, resume by link, history ----------
+let persistTimer;
+function persist(extra = {}) {
+  if (!S.token) return;
+  clearTimeout(persistTimer);
+  persistTimer = setTimeout(async () => {
+    const open = S.slots.find(s => !['stated', 'unknown'].includes((S.state.slots[s.id] || {}).status));
+    try { await post('/api/session/save', { token:S.token, transcript:S.transcript, state:S.state, cursor_field:open ? open.id : null, ...extra }); S.saveErr = false; }
+    catch (e) { S.saveErr = true; console.warn('save failed:', e.message); }
+    showSaveBar();
+  }, 300);
+}
+function showSaveBar() {
+  if (!S.token) return;
+  const link = location.origin + '/?s=' + S.token;
+  $('savebar').classList.remove('hide');
+  $('savebar').innerHTML = (S.saveErr ? '<span class="bad">⚠ not saved</span>' : '<span>💾 Saved</span>') + `<input id="resumeLink" readonly value="${esc(link)}"><button id="copyLink">Copy resume link</button>`;
+  $('copyLink').onclick = () => { navigator.clipboard.writeText(link); $('copyLink').textContent = 'Copied ✓'; setTimeout(() => $('copyLink').textContent = 'Copy resume link', 1500); };
+}
+async function resumeSession(token) {
+  try {
+    const r = await (async () => { const x = await fetch('/api/session?token=' + encodeURIComponent(token)); const j = await x.json(); if (!x.ok) throw new Error(j.error); return j; })();
+    S.token = r.token; S.usecase = r.usecase; S.slots = r.slots; S.form = r.form || {}; S.transcript = r.transcript || [];
+    S.state = { slots:(r.slot_state && r.slot_state.slots) || {}, sensitive:(r.slot_state && r.slot_state.sensitive) || [] };
+    S.useSarvam = !!S.config.sarvamVoice;
+    $('setup').classList.add('hide'); $('interview').classList.remove('hide'); $('log').innerHTML = '';
+    S.transcript.forEach(m => addMsg(m.role, m.text));
+    renderSlots(); showSaveBar(); setStep(2); loadHistory();
+    if (r.state === 'approved' || r.state === 'cancelled') { addMsg('agent', `This application was ${r.state}. Start a new one from the home page.`); return setStatus('', r.state); }
+    const last = S.transcript[S.transcript.length - 1];
+    const open = S.slots.find(s => s.id === r.cursor_field);
+    agentSay(!last ? 'Welcome back. Tell me about yourself and what you are applying for.'
+      : last.role === 'agent' ? `Welcome back. Here is where we stopped: ${last.text}`
+      : `Welcome back. I may have missed your last answer${open ? ` about ${open.label}` : ''}. Could you say it again?`);
+  } catch (e) {
+    $('banner').innerHTML += `<div class="banner">${esc(e.message)}</div>`;
+    history.replaceState(null, '', location.pathname); loadHistory();
+  }
+}
+async function loadHistory() {
+  if (!$('histList').children.length) $('histList').innerHTML = '<div class="empty">Loading…</div>';
+  try {
+    const j = await (await fetch('/api/sessions')).json(); if (j.error) throw new Error(j.error);
+    $('histNote').textContent = j.sessions.length ? String(j.sessions.length) : '';
+    if (!j.sessions.length) { $('histList').innerHTML = '<div class="empty">No applications yet. Your interviews are saved here so you can come back to them.</div>'; return; }
+    $('histList').innerHTML = j.sessions.map(s => {
+      if (!/^[a-f0-9]{16,64}$/i.test(s.resume_token || '')) return '';
+      const host = u => { try { return new URL(u).hostname; } catch { return ''; } };
+      const title = (s.form_meta && s.form_meta.title) || s.role_title || host(s.form_url) || 'Application';
+      return `<div class="hist ${s.resume_token === S.token ? 'cur' : ''}"><a href="/?s=${s.resume_token}" title="${esc(title)}"><div class="ttl">${esc(title)}</div></a>
+        <div class="meta"><span class="chip ${esc(s.state)}">${esc(s.state)}</span><span>${new Date(s.updated_at).toLocaleString(undefined, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })}</span>
+        <select data-t="${s.resume_token}" title="Did they respond?">${['none','applied','responded','interview','rejected','offer'].map(o => `<option ${o === s.outcome ? 'selected' : ''}>${o}</option>`).join('')}</select></div></div>`;
+    }).join('');
+    $('histList').querySelectorAll('select').forEach(sel => sel.onchange = () => post('/api/session/outcome', { token:sel.dataset.t, outcome:sel.value }).catch(e => alert(e.message)));
+  } catch (e) { $('histList').innerHTML = '<div class="empty">History unavailable (storage not configured).</div>'; }
+}
+
+// ---------- finish → review ----------
+$('finishBtn').onclick = async () => {
+  stopAll(); $('finishBtn').disabled = true; $('finishBtn').textContent = 'Building summary…';
+  try {
+    S.brief = await post('/api/brief', { usecase:S.usecase, slots:S.slots, state:S.state, transcript:S.transcript });
+    S.decided = null;
+    await Promise.all((S.brief.fields || []).map(f => post('/api/session/draft', { token:S.token, field_id:f.id, answer:f.value, review_status:'draft', evidence_source:f.evidence || null })));
+    persist({ sess_state:'reviewing' });
+    renderReview();
+  } catch (e) { alert(e.message); S.finalizing = false; S.finished = false; }
+  $('finishBtn').disabled = false; $('finishBtn').textContent = 'Finish & build summary';
+};
+$('backBtn').onclick = () => { setStep(2); S.finished = false; S.finalizing = false; S.trackDone = false; $('review').classList.add('hide'); $('interview').classList.remove('hide'); resumeListening(); };
+
+function renderReview() {
+  const b = S.brief;
+  setStep(3); $('interview').classList.add('hide'); $('review').classList.remove('hide'); $('decisionMsg').innerHTML = ''; $('approveBtn').disabled = $('cancelBtn').disabled = false;
+  $('rTitle').textContent = b.title || 'Summary'; $('rSummary').textContent = b.summary || '';
+  const uc = S.config.usecases.find(u => u.id === S.usecase);
+  const tabs = [['fields','Review & edit'], ...Object.keys(b.versions || {}).map(k => [k, k]), ['missing','Missing & sensitive']];
+  $('rTabs').innerHTML = tabs.map(([k,l]) => `<button data-k="${k}">${esc(l)}</button>`).join('');
+  $('rTabs').querySelectorAll('button').forEach(btn => btn.onclick = () => showTab(btn.dataset.k));
+  showTab('fields');
+}
+function showTab(k) {
+  const b = S.brief;
+  $('rTabs').querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.k === k));
+  if (k === 'fields') {
+    $('rBody').innerHTML = (b.fields || []).map((f, i) => `<div class="field"><label>${esc(f.label)}<span class="tag ${f.kind==='fact'?'stated':f.kind==='assumption'?'inferred':'unknown'}">${esc(f.kind)}</span></label>
+      <textarea data-i="${i}">${esc(f.value)}</textarea>${f.evidence ? `<small>“${esc(f.evidence)}”</small>` : ''}</div>`).join('');
+    $('rBody').querySelectorAll('textarea').forEach(t => {
+      t.disabled = !!S.decided && S.decided !== 'revise';
+      t.oninput = () => { b.fields[t.dataset.i].value = t.value; };
+      t.onchange = () => {   // a correction = new revision; the old one stays in the database
+        const f = b.fields[t.dataset.i];
+        post('/api/session/draft', { token:S.token, field_id:f.id, answer:t.value, review_status:'revised', evidence_source:f.evidence || null })
+          .then(r => { t.title = 'Saved as revision ' + r.revision; }).catch(e => alert('Could not save your correction: ' + e.message));
+      };
+    });
+  } else if (k === 'missing') {
+    $('rBody').innerHTML = `<b>Still missing</b><ul>${(b.missing||[]).map(m => `<li>${esc(m)}</li>`).join('') || '<li>Nothing flagged</li>'}</ul>
+      <b>Sensitive</b>${(b.sensitive||[]).map(s => `<div class="sens">${esc(s.text)} → <b>${esc(s.suggested_replacement || '[redacted]')}</b><br><small>${esc(s.reason)}</small></div>`).join('') || '<p>None flagged</p>'}`;
+  } else {
+    $('rBody').innerHTML = `<pre>${esc(b.versions[k])}</pre>`;
+  }
+  S.tab = k;
+}
+$('copyBtn').onclick = () => {
+  const b = S.brief;
+  const text = S.tab === 'fields' || S.tab === 'missing'
+    ? `# ${b.title}\n\n${b.summary}\n\n` + (b.fields||[]).map(f => `## ${f.label}\n${f.value}`).join('\n\n') : b.versions[S.tab];
+  navigator.clipboard.writeText(text); $('copyBtn').textContent = 'Copied ✓'; setTimeout(() => $('copyBtn').textContent = 'Copy', 1500);
+};
+async function decide(decision) {
+  const b = S.brief;
+  const snapshot = { title:b.title, summary:b.summary, fields:(b.fields||[]).map(f => ({ id:f.id, label:f.label, value:f.value, kind:f.kind, evidence:f.evidence })),
+    versions:b.versions, missing:b.missing, sensitive:b.sensitive, form:S.form, decided_at:new Date().toISOString() };
+  try { await post('/api/session/decide', { token:S.token, decision, snapshot }); }
+  catch (e) { return alert('Could not save your decision: ' + e.message); }
+  S.decided = decision; loadHistory();
+  const msg = { approved:'✅ Approved. This exact version is saved. Nothing was submitted or sent anywhere: you submit the form yourself.',
+    revise:'✏️ Marked as needing changes. Keep editing, then approve when it is right.', cancelled:'🚫 Cancelled. Nothing was approved and nothing was sent.' }[decision];
+  $('decisionMsg').innerHTML = `<div class="decision">${msg}</div>`;
+  $('approveBtn').disabled = $('cancelBtn').disabled = decision !== 'revise';
+  showTab(S.tab || 'fields');
+}
+$('approveBtn').onclick = () => decide('approved');
+$('reviseBtn').onclick = () => decide('revise');
+$('cancelBtn').onclick = () => decide('cancelled');
+$('dlBtn').onclick = () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify({ brief:S.brief, transcript:S.transcript }, null, 2)], { type:'application/json' }));
+  a.download = 'interview.json'; a.click();
+};
+</script>
+<script src="history.js" defer></script>
+<script src="profile.js" defer></script>
+</body>
+</html>
