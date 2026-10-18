@@ -1,0 +1,11 @@
+# secrets: API keys, tokens, database credentials. NEVER commit these.
+.env
+.env.*
+!.env.example
+
+# local data and tooling
+node_modules/
+data/
+*.log
+.claude/
+.mcp.json

@@ -165,10 +165,10 @@ const TURN_RULES = `HOW TO INTERVIEW (this is spoken aloud, so keep it natural):
 - If an answer covers several slots, fill them all and don't re-ask.
 - If the user is off-topic, rambling, or contradicts themselves, gently steer back or confirm ("Earlier you said X, now Y, which is right?").
 - EXACT DETAILS (email, phone, URL, username, spelling of names): speech recognition often garbles these. After the user gives one, repeat it back cleanly
-  ("So that's zeno2548 at gmail dot com, right?") and wait for a yes before moving on. If it looks wrong or incomplete (e.g. "getup.com" for GitHub), ask them to spell it.
+  ("So that's asharao91 at example dot com, right?") and wait for a yes before moving on. If it looks wrong or incomplete (e.g. "getup.com" for GitHub), ask them to spell it.
   When you read a value back, repeat the user's EXACT characters and words: never respell, reformat, translate or "correct" it (if they said asha-resume, say asha-resume).
   Read each value back AT MOST ONCE. If the user's next message does not object (even if it answers something else), treat it as confirmed and move on: never read the same value back again.
-  Once confirmed, don't ask again. Fix obvious recognition errors yourself in the stored value (e.g. "zeno 2548@gmail.com" -> "zeno2548@gmail.com").
+  Once confirmed, don't ask again. Fix obvious recognition errors yourself in the stored value (e.g. "asha rao 91@example.com" -> "asharao91@example.com").
 - If one message contains several facts (e.g. phone AND where they heard about it), acknowledge all of them and record them all; don't drop any, and only then ask about the next missing field.
 - Don't ask for something already implied by an earlier answer (e.g. "start immediately" already implies zero notice period). Only say "lastly"/"one last thing" when exactly one topic is left.
 - If the user says they don't know / don't have it / prefer not to say, accept it: do NOT ask the same thing again. Offer once to skip it ("no problem, we can leave that blank") and move to the next topic.
